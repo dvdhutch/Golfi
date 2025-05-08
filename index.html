@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golfi</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Iowan Old Style Font -->
+    <link href="https://fonts.cdnfonts.com/css/iowan-old-style" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+</head>
+<body class="bg-light">
+    <div id="app">
+        <!-- Auth UI (only visible when not authenticated) -->
+        <div v-if="authState !== 'authenticated'" class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-4">
+                    <div class="card shadow-sm mt-5">
+                        <div class="card-body">
+                            <div class="text-center mb-4">
+                                <h1 class="h3">Golfi</h1>
+                            </div>
+                            
+                            <h2 class="h4 text-center mb-4">{{ authState === 'login' ? 'Sign In' : 'Register' }}</h2>
+                            
+                            <div v-if="authError" class="alert alert-danger">{{ authError }}</div>
+                            
+                            <form class="auth-form" @submit.prevent="authState === 'login' ? login() : register()">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email</label>
+                                    <input 
+                                        type="email" 
+                                        class="form-control" 
+                                        id="email" 
+                                        v-model="email" 
+                                        required
+                                        placeholder="your@email.com"
+                                    >
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Password</label>
+                                    <input 
+                                        type="password" 
+                                        class="form-control" 
+                                        id="password" 
+                                        v-model="password" 
+                                        required
+                                        placeholder="********"
+                                    >
+                                </div>
+                                
+                                <div v-if="authState === 'register'" class="mb-3">
+                                    <label for="confirmPassword" class="form-label">Confirm Password</label>
+                                    <input 
+                                        type="password" 
+                                        class="form-control" 
+                                        id="confirmPassword" 
+                                        v-model="confirmPassword" 
+                                        required
+                                        placeholder="********"
+                                    >
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary w-100">
+                                    {{ authState === 'login' ? 'Sign In' : 'Register' }}
+                                </button>
+                            </form>
+                            
+                            <div class="text-center mt-3">
+                                <p v-if="authState === 'login'" class="mb-0">
+                                    Don't have an account? 
+                                    <a href="#" @click.prevent="toggleAuthState">Register</a>
+                                </p>
+                                <p v-else class="mb-0">
+                                    Already have an account? 
+                                    <a href="#" @click.prevent="toggleAuthState">Sign In</a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main App (only visible when authenticated) -->
+        <div v-else>
+            <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+                <div class="container">
+                    <a class="navbar-brand" href="#" @click.prevent="currentPage = 'courses'" style="font-family: 'Iowan Old Style', serif; font-size: 1.5rem;">Golfi</a>
+                    <div class="d-flex align-items-center">
+                        <div class="btn-group me-3">
+                            <button class="btn btn-outline-light" @click="currentPage = 'courses'">Courses</button>
+                            <button class="btn btn-outline-light" @click="currentPage = 'ratings'">Ratings</button>
+                            <button class="btn btn-outline-light" @click="currentPage = 'leaderboard'">Leaderboard</button>
+                            <button class="btn btn-outline-light" @click="currentPage = 'profile'">Profile</button>
+                        </div>
+                        <div class="dropdown">
+                            <span class="text-light me-2">{{ currentUser.email }}</span>
+                            <button class="btn btn-danger" @click="logout">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="container">
+                <!-- Home Page -->
+                <div v-if="currentPage === 'home'">
+                    <courses-component 
+                        :courses="courses"
+                        :current-pair="currentPair"
+                        :on-new-pair="getNewPair"
+                        :on-submit-rating="submitRating"
+                    ></courses-component>
+                </div>
+
+                <!-- Courses Page -->
+                <div v-if="currentPage === 'courses'" class="courses-page">
+                    <h2 class="mb-4">NYC Metro Area Golf Courses</h2>
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                        <div v-for="course in courses" :key="course.name" class="col">
+                            <div class="card h-100 shadow-sm">
+                                <img :src="course.image" :alt="course.name" @error="handleImageError" class="card-img-top">
+                                <div class="card-body">
+                                    <h3 class="card-title h5">{{ course.name }}</h3>
+                                    <p class="card-text">Par: {{ course.par }}</p>
+                                    <p class="card-text">Length: {{ course.length }} yards</p>
+                                    <p class="card-text">Cost: {{ '$'.repeat(course.costRating) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ratings Page -->
+                <div v-if="currentPage === 'ratings'">
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Randomly selects two courses to compare. Select the one you like more and leave a rating. Press shuffle for new courses.
+                    </div>
+                    <courses-component 
+                        :courses="courses"
+                        :current-pair="currentPair"
+                        :on-new-pair="getNewPair"
+                        :on-submit-rating="submitRating"
+                    ></courses-component>
+                </div>
+
+                <!-- Profile Page -->
+                <div v-if="currentPage === 'profile'" class="profile-page">
+                    <h2 class="mb-4">Your Profile</h2>
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h3 class="h5 mb-3">Your Rating History</h3>
+                            <div v-if="courseRatings.length === 0">
+                                <p class="text-muted">You haven't rated any courses yet.</p>
+                            </div>
+                            <div v-else>
+                                <div class="card mb-3" v-for="(rating, index) in courseRatings" :key="index">
+                                    <div class="card-body">
+                                        <h4 class="card-title h6">{{ rating.courseName }}</h4>
+                                        <div class="text-warning mb-2">{{ '★'.repeat(rating.stars) }}</div>
+                                        <p class="card-text">"{{ rating.comment }}"</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard Page -->
+                <div v-if="currentPage === 'leaderboard'" class="leaderboard-page">
+                    <h2 class="mb-4">Golf Leaderboard</h2>
+                    
+                    <!-- Leaderboard Section -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h3 class="h5 mb-3">Leaderboard</h3>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Golfer</th>
+                                            <th>Par</th>
+                                            <th>Score</th>
+                                            <th>O/U</th>
+                                            <th>Edit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(golfer, index) in leaderboard" :key="golfer.name">
+                                            <td>{{ index + 1 }}</td>
+                                            <td>{{ golfer.name }}</td>
+                                            <td>{{ golfer.par }}</td>
+                                            <td>{{ golfer.score }}</td>
+                                            <td>{{ golfer.overUnder > 0 ? '+' + golfer.overUnder : golfer.overUnder }}</td>
+                                            <td>
+                                                <button 
+                                                    class="btn btn-sm btn-link text-dark" 
+                                                    @click="startEditing(rounds.find(r => r.golferName === golfer.name))"
+                                                >
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Form -->
+                    <div v-if="editingRound" class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h3 class="h5 mb-3">Edit Round</h3>
+                            <select v-model="editForm.courseName" class="form-select mb-3">
+                                <option value="">Select Course</option>
+                                <option v-for="course in courses" :value="course.name">{{ course.name }}</option>
+                            </select>
+                            <input v-model="editForm.golferName" placeholder="Golfer Name" class="form-control mb-3" />
+                            <input v-model="editForm.parInput" placeholder="Par (each hole, comma separated, no space)" class="form-control mb-3" />
+                            <input v-model="editForm.scoresInput" placeholder="Scores (each hole, comma separated, no space)" class="form-control mb-3" />
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success flex-grow-1" @click="saveEdit">Save Changes</button>
+                                <button class="btn btn-secondary flex-grow-1" @click="cancelEdit">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary mb-3" @click="showForm = !showForm">⛳ New Round</button>
+
+                    <!-- New Round Form -->
+                    <div v-if="showForm" class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <select v-model="newRound.courseName" class="form-select mb-3">
+                                <option value="">Select Course</option>
+                                <option v-for="course in courses" :value="course.name">{{ course.name }}</option>
+                            </select>
+                            <input v-model="newRound.golferName" placeholder="Golfer Name" class="form-control mb-3" />
+                            <input v-model="newRound.parInput" placeholder="Par (each hole, comma separated, no space)" class="form-control mb-3" />
+                            <input v-model="newRound.scoresInput" placeholder="Scores (each hole, comma separated, no space)" class="form-control mb-3" />
+                            <button class="btn btn-success w-100" @click="addRound">Submit Round</button>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card shadow-sm">
+                                <div class="card-body">
+                                    <h4 class="h6">Total Rounds</h4>
+                                    <p class="h3 mb-0">{{ totalRounds }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card shadow-sm">
+                                <div class="card-body">
+                                    <h4 class="h6">Record Score</h4>
+                                    <p class="h3 mb-0">{{ averageOverUnder.score > 0 ? '+' + averageOverUnder.score : averageOverUnder.score }}</p>
+                                    <p class="text-muted mb-0">
+                                        {{ averageOverUnder.golfer }} at {{ averageOverUnder.course }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="courses.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 
